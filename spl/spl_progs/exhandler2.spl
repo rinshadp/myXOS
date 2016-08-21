@@ -1,0 +1,106 @@
+alias Cause S0;
+Cause=EFR%10;
+alias physicalSP S5;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+if(Cause==0) then
+	alias Ip_addr S1;
+	Ip_addr=(EFR/1000);
+	//alias VPagenum S2;
+	//VPagenum=(EFR/10)%100;
+	alias Error_page S2;
+	//Error_page=Ip_addr/512;
+	Error_page=(EFR/10)%100;
+	breakpoint;
+	if([PTBR+2*Error_page]==-1) then
+		print("Invalid page access");
+		inline "JMP 11776";
+	endif;
+	alias DiskBlock S3;
+	DiskBlock=[PTBR+2*Error_page];
+	alias i S4;
+	i=24;
+	breakpoint;
+	while(i<64) do
+		if([MEM_LIST + i]==0) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	breakpoint;
+	if(i==64) then
+		i=0;
+		alias found S6;
+		found=0;
+		alias k S7;
+		k=Error_page;
+		while(found==0) do
+			i=k%64;
+			if(i%3==0) then
+				continue;
+			endif;
+			if([PTBR+2*i]!=-1 && [PTBR+2*i+1]=="01") then
+				if([MEM_LIST + [PTBR+2*i]]>1) then 
+					continue;
+				endif;
+				alias counter S8;
+				counter=448;
+				while(counter<512) do
+					if([DISK_LIST+counter]==0) then
+						[DISK_LIST+counter]=1;
+						store(6,20);
+						break;
+					endif;
+					counter=counter+1;
+				endwhile;
+				if(counter==512) then
+					print("Swap area full");
+					[physicalSP-1]=10;
+					inline "JMP 11776";
+				endif;
+				store([PTBR+2*i],counter);
+				found=[PTBR+2*i];
+				[PTBR+2*i]=counter;
+				[PTBR+2*i+1]="00";
+				break;
+			endif;
+			if([PTBR+2*i]!=-1 && [PTBR+2*i+1]=="11") then
+				[PTBR+2*i+1]="01";
+			endif;
+			k=k+1;
+		endwhile;
+		i=found;
+	endif;
+	[MEM_LIST + i]=1;
+	[PTBR+2*Error_page]=i;
+	[PTBR + 2*Error_page +1]="11";
+	load(i,DiskBlock);
+	if(DiskBlock>=448 && DiskBlock<=511) then
+		[DISK_LIST+DiskBlock]=[DISK_LIST+DiskBlock]-1;
+	endif;
+	SP=SP+1;
+	//print("Req BKP");
+	breakpoint;
+	[physicalSP+1]=Ip_addr;
+	breakpoint;
+endif;
+if(Cause==1) then
+	print("Illegal Instruction");
+	[physicalSP-1]=10;
+	inline "JMP 11776";
+endif;
+if(Cause==2) then
+	print("Illegal Memory Access");
+	[physicalSP-1]=10;
+	inline "JMP 11776";
+endif;
+if(Cause==3) then
+	print("Arithmetic Exception");
+	[physicalSP-1]=10;
+	inline "JMP 11776";
+endif;
+if(Cause==4) then	
+	print("Illegal Operands");
+	[physicalSP-1]=10;
+	inline "JMP 11776";
+endif;
+ireturn;

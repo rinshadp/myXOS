@@ -1,0 +1,7 @@
+load --init ../apl/apl_progs/assgn.xsm
+rm --exec merge.xsm
+load --exec ../apl/apl_progs/merge.xsm
+rm --data a.dat
+rm --data b.dat
+rm --data c.dat
+exit

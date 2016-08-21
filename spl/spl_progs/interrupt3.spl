@@ -1,0 +1,54 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias i S2;
+alias FD S3;
+FD=[physicalSP-4];
+if (!(FD>=0 && FD<=7)) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+alias PPOFT_IN S5;
+PPOFT_IN=(2*FD + 15);
+alias currentPCB S6;
+currentPCB=READY_LIST + 32 * ((PTBR-1024)/8);
+if ([currentPCB + PPOFT_IN]==-1) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+alias OFT_IN S7;
+OFT_IN=[currentPCB + PPOFT_IN];
+alias FAT_IN S8;
+FAT_IN=[FILE_TABLE + OFT_IN*2];
+if (sysCallNo==6) then
+	alias newLSeek S4;
+	newLSeek=[physicalSP-3];
+	alias FileSize S9;
+	FileSize=[FAT + FAT_IN * 8 + 1];
+	newLSeek=[currentPCB + PPOFT_IN + 1]+newLSeek;
+	if(!(newLSeek>=0 && newLSeek<=FileSize)) then 
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	[currentPCB + PPOFT_IN + 1]=newLSeek;
+	[physicalSP-2]=0;
+	ireturn;
+else
+	alias LSEEK S4;
+	LSEEK=[currentPCB + PPOFT_IN + 1];
+	alias BasicBlock S9;
+	BasicBlock=[FAT + FAT_IN*8 + 2];
+	load (1, BasicBlock);
+	if(LSEEK==[FAT + FAT_IN*8 + 1]) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	alias BlockNo S10;
+	BlockNo=[SCRATCHPAD + (LSEEK/512)];
+	load (1,BlockNo);
+	[physicalSP-3]=[SCRATCHPAD + (LSEEK%512)];
+	[currentPCB + PPOFT_IN + 1]=[currentPCB + PPOFT_IN + 1]+1;
+	[physicalSP-2]=0;
+	ireturn;
+endif;

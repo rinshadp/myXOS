@@ -1,0 +1,67 @@
+load (7,1);					//Loading exception handler
+load (8,2);
+[READY_LIST +0]=0;				//PID=0
+//load (25,21);
+//load (26,22);
+//load (27,23);
+PTBR=1024;
+PTLR=4;
+[PTBR + 0]=21;					//Setting up PTB for INIT
+[PTBR + 1]="00";
+[PTBR + 2]=22;
+[PTBR + 3]="00";
+[PTBR + 4]=23;
+[PTBR + 5]="00";
+[PTBR + 6]=28;
+[PTBR + 7]="01";
+[READY_LIST +1]=2;
+SP=3*512;					//SP=3rd logical page
+[28*512]=0;					//Setting IP value 0 on top of stack
+load (9, 3);					//Loading TIMER INT
+load (10, 4);
+load (11, 5);					//Loading INT1-7 on (11,12) to (23,24)
+load (12, 6);
+load (13, 7);
+load (14, 8);
+load (15, 9);
+load (16, 10);
+load (17, 11);
+load (18, 12);
+load (19, 13);
+load (20, 14);
+load (21, 15);
+load (22, 16);
+load (23, 17);
+load (24, 18);
+load (5,19);					//Loading FAT
+load (6,20);					//Loading Disk Free List
+alias counter S0;
+counter = 0;
+while ( counter <  128) do			
+	[ FILE_TABLE + counter + 0] = -1;	//Initializing System Wide Open File Table
+	[ FILE_TABLE + counter + 1] =  0;	// Set File Open Count to 0
+	counter = counter + 2;			
+endwhile;	
+counter=15;
+while (counter <=30) do
+	[READY_LIST + counter]=-1;		//Initializing Per-Process OFT
+	counter=counter+1;
+endwhile;
+counter=1;
+while (counter < 32) do
+	[READY_LIST + counter*32 + 1]=0;	//Setting up Ready list of PCBs
+	counter=counter+1;
+endwhile;
+counter=0;
+while (counter < 25) do
+	[MEM_LIST + counter]=1;			
+	counter=counter+1;			//Set MEMORY to 1 NOTE:INIT is not set to 1
+endwhile;	
+[MEM_LIST + 28]=1;				//Stack is reserved for INIT
+counter=448;
+while (counter < 512) do	
+	[DISK_LIST + counter]=0;		//Swap Area is set in Memory copy of disk free list
+	counter=counter+1;
+endwhile;
+store(6,20);
+ireturn;

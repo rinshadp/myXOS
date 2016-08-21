@@ -1,0 +1,116 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias fileName S2;
+fileName=[physicalSP-3];
+alias i S3;
+alias BasicBlock S4;
+i=0;
+if(sysCallNo==1) then
+while (i<64) do
+	if([FAT + i * 8]==fileName) then 
+		break;
+	else
+		i=i+1;
+	endif;
+endwhile;
+if (i<64) then
+	[physicalSP-2]=0;
+	ireturn;
+endif;
+i=24;
+while([DISK_LIST + i]!=0 && i<=447) do
+	i=i+1;
+endwhile;
+if(i>447) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+BasicBlock=i;
+i=0;
+while (i<64) do
+	if([FAT + i * 8 + 2]==-1) then 
+		break;
+	else
+		i=i+1;
+	endif;
+endwhile;
+if (i==64) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+[FAT + i * 8]=fileName;
+[FAT + i * 8 + 1]=0;
+[FAT + i * 8 + 2]=BasicBlock;
+load (1,BasicBlock);
+i=0;
+while(i<256) do
+	[SCRATCHPAD + i]=-1;
+	i=i+1;
+endwhile;
+store (1,BasicBlock);
+[DISK_LIST + BasicBlock]=1;
+store (5,19);
+store (6,20);
+[physicalSP-2]=0;
+ireturn;
+else
+alias FAT_IN S5;
+while (i<64) do
+	if([FAT + i * 8]==fileName) then 
+		FAT_IN=i;
+		BasicBlock=[FAT + i*8 +2];
+		break;
+	endif;
+	i=i+1;	
+endwhile;
+if (i==64) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+i=0;
+while (i<128) do
+	if ([FILE_TABLE + i]==FAT_IN) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	i=i+2;
+endwhile;
+breakpoint;
+load (1, BasicBlock);
+i=0;
+while (i<256) do
+	if ([SCRATCHPAD + i]!=-1) then
+		alias temp S6;
+		alias DataBlock S7;
+		temp=i;
+		DataBlock=[SCRATCHPAD + i];
+		load (1, [SCRATCHPAD + i]);
+		i=0;
+		while (i<512) do
+			[SCRATCHPAD + i]="";
+			i=i+1;
+		endwhile;
+		i=temp;
+		store(1,DataBlock);
+		load(1,BasicBlock);
+		breakpoint;
+		[DISK_LIST + DataBlock]=0;
+	endif;
+	[SCRATCHPAD + i]="";
+        store(1,BasicBlock);
+	i=i+1;
+endwhile;
+breakpoint;
+[DISK_LIST + BasicBlock]=0;
+[FAT + FAT_IN*8]=-1;
+[FAT + FAT_IN*8 + 1]=0;
+[FAT + FAT_IN*8 + 2]=-1;
+store (5,19);
+store (6,20);
+[physicalSP-2]=0;
+breakpoint;
+ireturn;
+endif;
+		

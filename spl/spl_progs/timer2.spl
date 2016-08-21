@@ -1,0 +1,21 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias fileName S2;
+fileName=[physicalSP-3];
+alias i S3;
+i=0;
+while (i<64) do
+if([FAT + i * 8]==fileName) then 
+break;
+else
+i=i+1;
+endif;
+endwhile;
+if (i<64) then
+[physicalSP-2]=0;
+else
+[physicalSP-2]=1;
+endif;
+ireturn;

@@ -1,0 +1,68 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias fileName S2;
+fileName=[physicalSP-3];
+alias i S3;
+i=0;
+while (i<64) do
+	if([FAT + i * 8]==fileName) then 
+		break;
+	else
+		i=i+1;
+	endif;
+endwhile;
+if (i==64) then
+	//print("FileNotFound");
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+alias BasicBlock S4;
+BasicBlock=[FAT + i * 8 + 2];
+load(1,BasicBlock);
+i=0;
+while ([SCRATCHPAD+i]!=-1) do
+	i=i+1;
+endwhile;
+alias Codecount S5;
+Codecount=i;
+i=0;
+while(i<3) do
+	if([PTBR+2*i+1]=="01" || [PTBR+2*i+1]=="11") then			//if valid decrease reference count in MEM_LIST
+		[MEM_LIST + [PTBR+2*i]]=[MEM_LIST + [PTBR+2*i]]-1;		
+	endif;
+	if([PTBR+2*i+1]=="00" && [PTBR+2*i]>=448) then
+		[DISK_LIST+[PTBR+2*i]]=[DISK_LIST+[PTBR+2*i]]-1;		//if in swap area decrease ref count in DISK_LIST
+		store(6,20);
+	endif;
+	[PTBR+i*2]=-1;
+	[PTBR+i*2+1]="00";
+	i=i+1;
+endwhile;
+i=0;
+while(Codecount!=0) do
+	[PTBR + 2*i]=[SCRATCHPAD + i];
+	Codecount=Codecount-1;
+	i=i+1;
+endwhile;
+alias currentPCB S9;
+currentPCB=READY_LIST + 32 * ((PTBR-1024)/8);
+i=15;
+while(i<=30) do
+	alias OFT_IN S11;
+	OFT_IN=[currentPCB + i];
+	if(OFT_IN!=-1) then	
+		[FILE_TABLE + OFT_IN + 1]=[FILE_TABLE + OFT_IN + 1] - 1;
+		if ([FILE_TABLE + OFT_IN + 1] == 0) then
+			[FILE_TABLE + OFT_IN]=-1;
+		endif;
+		[currentPCB + i]=-1;
+		[currentPCB + i+1]=-1;
+	endif;	
+	i=i+2;
+endwhile;
+//breakpoint;
+SP=3*512;
+[([PTBR + 2 * (SP / 512)] * 512) + (SP % 512)]=0;
+ireturn;

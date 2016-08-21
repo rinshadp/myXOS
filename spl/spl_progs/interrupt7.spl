@@ -1,0 +1,131 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias i S2;
+if(sysCallNo == 10) then
+	alias PID S4;
+	PID=(PTBR-1024)/8;
+	i=0;
+	while(i<32) do
+		if([READY_LIST+i*32+1]==(100+PID)) then
+			[READY_LIST+i*32+1]=1;
+		endif;
+		i=i+1;
+	endwhile;
+	i=0;
+	while(i<32) do
+		if([READY_LIST+i*32+1]==1) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	if(i==32) then
+		halt;
+	endif;
+	i=0;
+	while(i<3) do
+		if([PTBR+2*i+1]=="01" || [PTBR+2*i+1]=="11") then
+			[MEM_LIST + [PTBR+2*i]]=[MEM_LIST + [PTBR+2*i]]-1;
+		endif;
+		if([PTBR+2*i+1]=="00" && [PTBR+2*i]>=448) then
+			[DISK_LIST+[PTBR+2*i]]=[DISK_LIST+[PTBR+2*i]]-1;
+			store(6,20);
+		endif;
+		i=i+1;
+	endwhile;
+	alias currentPCB S3;
+	currentPCB=READY_LIST + 32 * ((PTBR-1024)/8);
+	i=15;
+	while(i<=30) do
+		alias OFT_IN S5;
+		OFT_IN=[currentPCB + i];
+		if(OFT_IN!=-1) then
+				[FILE_TABLE + OFT_IN + 1]=[FILE_TABLE + OFT_IN + 1] - 1;
+			if ([FILE_TABLE + OFT_IN + 1] == 0) then
+				[FILE_TABLE + OFT_IN]=-1;
+			endif;
+			[currentPCB + i]=-1;
+			[currentPCB + i+1]=-1;
+		endif;	
+		i=i+2;
+	endwhile;
+	[currentPCB + 1]=0;
+	while(i<4) do
+		if([PTBR+2*i]!=-1) then
+			[MEM_LIST+[PTBR+2*i]]=0;
+			[PTBR+2*i]=-1;
+			[PTBR+2*i+1]="00";
+		endif;
+		i=i+1;
+	endwhile;
+	alias newphysicalSP S4;							//CHECK THE NEW PROCESS CAREFULLY
+	alias newPCB S5;
+	alias newPID S6;
+	newPID=(((PTBR-1024)/8)+1)%32;
+	newPCB=READY_LIST + 32 * newPID;
+	while([newPCB+1]!=1) do
+		newPID=(newPID+1)%32;
+		newPCB=READY_LIST + 32 * newPID;
+	endwhile;
+	BP=[newPCB + 2];
+	SP=[newPCB + 3];
+	PTBR=[newPCB + 5];
+	PTLR=[newPCB + 6];
+	R0=[newPCB + 7];
+	R1=[newPCB + 8];
+	R2=[newPCB + 9];
+	R3=[newPCB + 10];
+	R4=[newPCB + 11];
+	R5=[newPCB + 12];
+	R6=[newPCB + 13];
+	R7=[newPCB + 14];	
+	SP = SP + 1;								//CHECK IF SP,IP are set correctly
+	newphysicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+	[newphysicalSP ] = [newPCB + 4 ];
+	[newPCB + 1] = 2;
+	ireturn;
+endif;
+
+if(sysCallNo ==13) then
+	alias WaitingPID S3;
+	WaitingPID=[physicalSP-3];
+	alias WPCB S4;
+	WPCB=READY_LIST + WaitingPID*32;
+	if([WPCB+1]==2 || [WPCB+1]==0) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	alias currentPCB S5;
+	currentPCB=READY_LIST + 32 * ((PTBR-1024)/8);
+	[currentPCB+1]=100 + WaitingPID;
+	[currentPCB + 2 ] = BP;
+	[currentPCB + 3 ] = SP-1;
+	[currentPCB + 4 ] = [physicalSP];
+	[currentPCB + 5 ] = PTBR;
+	[currentPCB + 6 ] = PTLR;
+	[currentPCB + 7 ] = R0;
+	[currentPCB + 8 ] = R1;
+	[currentPCB + 9 ] = R2;
+	[currentPCB + 10 ] = R3;
+	[currentPCB + 11 ] = R4;
+	[currentPCB + 12 ] = R5;
+	[currentPCB + 13 ] = R6; 
+	[currentPCB + 14 ] = R7;
+	[physicalSP-2]=0;
+	inline "JMP 11836";
+	ireturn;
+endif;
+if(sysCallNo==14) then
+	alias PID S4;
+	PID=(PTBR-1024)/8;
+	i=0;
+	while(i<32) do
+		if([READY_LIST+i*32+1]==(100+PID)) then
+			[READY_LIST+i*32+1]=1;
+		endif;
+		i=i+1;
+	endwhile;	
+	[physicalSP-2]=0;
+	ireturn;
+endif;

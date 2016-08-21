@@ -1,0 +1,102 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias counter S2;
+counter=0;
+while (counter < 32) do
+	if([READY_LIST + counter*32 + 1]==0) then		//searchin ready list  for free pcb
+		break;
+	endif;
+	counter=counter+1;
+endwhile;
+if (counter==32) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+//breakpoint;
+alias PID S3;
+PID=counter;
+[READY_LIST + counter*32]=PID;
+counter=0;
+
+//breakpoint;
+counter=25; //0 t0 24 is kernal space
+while(counter<64) do
+	if([MEM_LIST+counter]==0) then			//Searchig Memory for free page to be allocated for stack of child
+		[MEM_LIST+counter]=1;
+		break;
+	endif;
+	counter=counter+1;
+endwhile;
+if(counter==64) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+//breakpoint;
+alias newPTBR S6;
+newPTBR=1024 + 8 * PID;
+[newPTBR+6]=counter;					//Setting Stack of child in PTB of child
+[newPTBR+7]="01";
+
+alias PStack S10;      //#### stack of parent is copied to stack of chiled ####
+alias CStack S11;
+PStack=[PTBR + 6]*512;
+CStack=counter*512;
+counter=0;
+while(counter<512) do
+	[CStack+counter]=[PStack+counter];
+	counter=counter+1;
+endwhile;
+
+
+counter=0;   
+while(counter<3) do
+	[newPTBR+2*counter]=[PTBR+2*counter];						
+	[newPTBR+2*counter+1]=[PTBR+2*counter+1];			
+	if([PTBR+2*counter+1]=="01" || [PTBR+2*counter+1]=="11") then	//if valid, then increase reference count in MEM_LIST
+		[MEM_LIST + [PTBR+2*counter]]=[MEM_LIST + [PTBR+2*counter]]+1;
+	endif;
+	if([PTBR+2*counter+1]=="00" && [PTBR+2*counter]>=448) then			
+	//####### if the page of parent is moved out for swap  ,,handle the case############
+		[DISK_LIST+[PTBR+2*counter]]=[DISK_LIST+[PTBR+2*counter]]+1;
+		store(6,20);
+	endif;
+	counter=counter+1;
+endwhile;
+
+//breakpoint;
+alias newPCB S7;
+newPCB=READY_LIST+32*PID;
+alias currentPCB S8;
+currentPCB=READY_LIST + 32 * ((PTBR-1024)/8);						//saving pcb of child
+[newPCB + 2]=BP;
+[newPCB + 3]=SP-1;
+[newPCB + 4]=[physicalSP];
+[newPCB + 5]=newPTBR;
+[newPCB + 6]=4;
+[newPCB + 7]=R0;
+[newPCB + 8]=R1;
+[newPCB + 9]=R2;
+[newPCB + 10]=R3;
+[newPCB + 11]=R4;
+[newPCB + 12]=R5;
+[newPCB + 13]=R6;
+[newPCB + 14]=R7;
+counter=15;
+while(counter<31) do
+	if([currentPCB+counter]!=-1) then
+		[FILE_TABLE + [currentPCB+counter]+1]=[FILE_TABLE + [currentPCB+counter]+1]+1;
+	endif;
+	[newPCB+counter]=[currentPCB+counter];
+	[newPCB+counter+1]=[currentPCB+counter+1];
+	counter=counter+2;
+endwhile;
+[newPCB + 1]=1;
+[currentPCB+1]=2;
+[physicalSP-2]=PID;								//check setting IP CAREFULLY
+alias childPSP S9;
+childPSP=([newPTBR + 2 * ((SP-1) / 512)] * 512) + ((SP-1) % 512);    //calculated by taking sp-1
+[childPSP-1]=-2;
+//breakpoint;
+ireturn;

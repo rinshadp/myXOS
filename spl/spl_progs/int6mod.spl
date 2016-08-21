@@ -1,0 +1,125 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias fileName S2;
+fileName=[physicalSP-3];
+alias i S3;
+i=0;
+while (i<64) do
+	if([FAT + i * 8]==fileName) then 
+		break;
+	else
+		i=i+1;
+	endif;
+endwhile;
+if (i==64) then
+	[physicalSP-2]=-1;
+	ireturn;
+endif;
+alias BasicBlock S4;
+BasicBlock=[FAT + i * 8 + 2];
+load(1,BasicBlock);
+i=0;
+while ([SCRATCHPAD+i]!=-1) do
+	i=i+1;
+endwhile;
+alias Codecount S5;
+Codecount=i;
+alias Pagecount S6;
+i=0;
+Pagecount=0;
+while(i<3) do
+	if([PTBR+2*i]!=-1) then
+		Pagecount=Pagecount+1;
+	endif;
+	i=i+1;
+endwhile;
+breakpoint;
+if(Pagecount<Codecount) then
+	i=Codecount-Pagecount;
+	Pagecount=i;
+	alias k S7;
+	k=i;
+	i=24;
+	while(i<64) do
+		if([MEM_LIST+i]==0) then
+			k=k-1;
+		endif;
+		if(k==0) then
+			break;
+		endif;
+	endwhile;
+	if (i==64) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	k=0;
+	while([PTBR+k*2]!=0&&k<4) do
+		k=k+1;
+	endwhile;
+	while(i>=0) do
+		if(Pagecount==0) then
+				break;
+		else
+			if([MEM_LIST+i]==0) then
+				[PTBR+2*k]=i;
+				[PTBR+2*k+1]="01";
+				k=k+1;
+				Pagecount=Pagecount-1;
+			endif;
+		endif;
+		i=i-1;
+	breakpoint;
+	endwhile;
+else
+	i=Pagecount-Codecount;
+	alias k S7;
+	k=2;
+	while(i!=0) do
+		[PTBR+2*k]=-1;
+		[PTBR+2*k+1]="00";
+		k=k-1;
+		i=i-1;
+	endwhile;
+	breakpoint;
+endif;
+i=0;
+alias k S8;
+k=0;
+while (i<256) do
+	if ([SCRATCHPAD + i]!=-1) then
+		load([PTBR + k],[SCRATCHPAD + i]);
+		[PTBR + k + 1]="01";
+	else
+		break;	
+	endif;
+	k = k + 2;
+	i=i+1;
+	breakpoint;
+endwhile;
+alias currentPCB S9;
+currentPCB=READY_LIST + 32 * ((PTBR-1024)/8);
+i=15;
+while(i<=30) do
+	//alias FD S10;
+	//FD=[currentPCB+i];
+	//if (!(FD>=0 && FD<=7)) then
+	//	break;
+	//endif;
+	alias OFT_IN S11;
+	OFT_IN=[currentPCB + i];
+	if(OFT_IN!=-1) then	
+		[FILE_TABLE + OFT_IN*2 + 1]=[FILE_TABLE + OFT_IN*2 + 1] - 1;
+		if ([FILE_TABLE + OFT_IN*2 + 1] == 0) then
+			[FILE_TABLE + OFT_IN*2]=-1;
+		endif;
+		[currentPCB + i]=-1;
+		[currentPCB + i+1]=-1;
+	endif;	
+	i=i+2;
+endwhile;
+breakpoint;
+SP=3*512;
+[([PTBR + 2 * (SP / 512)] * 512) + (SP % 512)]=0;
+ireturn;

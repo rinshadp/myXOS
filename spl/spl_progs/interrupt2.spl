@@ -1,0 +1,90 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+alias sysCallNo S1;
+sysCallNo=[physicalSP-1];
+alias i S3;
+alias FAT_IN S4;
+alias OFT_IN S5;
+alias currentPCB S6;
+alias PPOFT_IN S7;
+currentPCB = READY_LIST + 32 * ((PTBR-1024)/8);
+if(sysCallNo==2) then
+	i=0;
+	alias fileName S2;
+	fileName=[physicalSP-3];
+	while (i<64) do
+		if([FAT + i * 8]==fileName) then 
+			break;
+		else
+			i=i+1;
+		endif;
+	endwhile;
+	if (i==64) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	FAT_IN=i;
+	OFT_IN=-1;
+	i=0;
+	while (i<64) do
+		if ([FILE_TABLE + i*2]==FAT_IN) then
+			OFT_IN=i;
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	if(OFT_IN==-1) then
+		i=0;
+		while (i<64) do
+			if ([FILE_TABLE + i*2]==-1) then
+				OFT_IN=i;
+				break;
+			endif;
+			i=i+1;
+		endwhile;
+	endif;
+	if(OFT_IN==-1) then 
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	PPOFT_IN=-1;
+	i=15;
+	while (i<=30) do
+		if([currentPCB + i]==-1) then
+			PPOFT_IN=i;
+			break;
+		endif;
+		i=i+2;
+	endwhile;
+	if(PPOFT_IN==-1) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	[currentPCB + PPOFT_IN]=OFT_IN;
+	[currentPCB + PPOFT_IN + 1]=0;
+	[FILE_TABLE + OFT_IN*2]=FAT_IN;
+	[FILE_TABLE + OFT_IN*2 + 1]=[FILE_TABLE + OFT_IN*2 + 1] + 1;
+	[physicalSP-2]=(PPOFT_IN-15)/2;
+	ireturn;
+else 
+	alias FD S2;
+	FD=[physicalSP-3];
+	if (!(FD>=0 && FD<=7)) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	PPOFT_IN=(2*FD + 15);
+	if ([currentPCB + PPOFT_IN]==-1) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	OFT_IN=[currentPCB + PPOFT_IN];
+	[FILE_TABLE + OFT_IN*2 + 1]=[FILE_TABLE + OFT_IN*2 + 1] - 1;
+	if ([FILE_TABLE + OFT_IN*2 + 1] == 0) then
+		[FILE_TABLE + OFT_IN*2]=-1;
+	endif;
+	[currentPCB + PPOFT_IN]=-1;
+	[currentPCB + PPOFT_IN + 1]=-1;
+	[physicalSP-2]=0;
+	ireturn;
+endif;
